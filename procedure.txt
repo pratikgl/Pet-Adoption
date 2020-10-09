@@ -1,0 +1,29 @@
+Written by Pratik Goyal
+https://pratikgl.github.io
+
+The script file is final_model.py
+The output file is lola.csv
+
+Step 1:
+the first step was converting the NaN values of 'condition' column to 3.
+
+Step 2:
+hot encoding the columns 'Condition' and 'color_type'
+
+step 3:
+imputation for column 'X1'. The imputation method used is mean by target 
+where the target variable was 'X2'
+
+step 4:
+Feature Selection -> selectKbest python function was used for feature selection 
+where k was 64, 50 respectively for 'breed_category' and 'pet_category'
+
+step 5:
+gradient boosting classifier was used for training the model
+
+step 6:
+the same preprocessing step was done for the test data and after preprocessing,
+they were fitted in the model to predict the variables viz: 'breed_category' and 'pet_category'
+
+step 7:
+the output was converted to a dataframe and then to a csv file

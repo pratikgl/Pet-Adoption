@@ -1,0 +1,227 @@
+# Importing libraries
+import pandas as pd 
+import numpy as np 
+import matplotlib.pyplot as plt
+import seaborn as sns 
+from sklearn.model_selection import train_test_split 
+from sklearn.linear_model import LogisticRegression
+from sklearn.feature_selection import RFE
+from sklearn import metrics 
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+from sklearn.feature_selection import SelectKBest, chi2, f_classif
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.ensemble import GradientBoostingClassifier
+
+
+# Load data
+dataset = pd.read_csv("Dataset/train.csv")
+ds = dataset
+
+# converting Nan values
+ds['condition']=ds['condition'].fillna(3)
+
+# hot encoding
+#for condition
+integer_encoded = ds['condition'].values
+onehot_encoder = OneHotEncoder(sparse=False)
+integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
+x1 = onehot_encoder.fit_transform(integer_encoded) # 4 columns
+
+#for colortype
+integer_encoded = ds['color_type'].values  
+onehot_encoder = OneHotEncoder(sparse=False)
+integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
+x2 = onehot_encoder.fit_transform(integer_encoded) # 56 columns
+
+#imputation for X1
+matrix = [0 for y in range(10)] 
+count = [0 for y in range(10)] 
+avg = [0 for y in range(10)]
+
+for i in range(len(ds)):
+    if ds['X1'][i] != 0:
+        x = int(ds['X2'][i])
+        matrix[x] = matrix[x] + ds['X1'][i]
+        count[x] += 1
+            
+for i in range(10):
+    if count[i] != 0:
+        avg[i] = round(matrix[i]/count[i])
+
+x3 = [0]*len(ds) # 1 column
+for i in range(len(ds)):
+    if ds['X1'][i] == 0:
+        x = int(ds['X2'][i])
+        x3[i] = avg[x]
+    else:
+        x3[i] = ds['X1'][i]
+
+x3 = np.resize(x3, (len(ds), 1))
+
+x_final = np.concatenate( # 66 columns
+    (x1,                             # 4
+     x2,                             # 56   
+     ds[['length(m)']],              # 1
+     ds[['height(cm)']],             # 1
+     x3,                             # 1 
+     ds[['X2']],                     # 1
+     ds[['pet_category']],
+    ds[['breed_category']]), axis=1)  # 1
+
+final_ds = pd.DataFrame(
+    data=x_final[0:,0:],
+    index=[i for i in range(x_final.shape[0])],
+    columns=['f'+str(i) for i in range(x_final.shape[1])])
+
+
+# data distribution
+feature_names = final_ds.columns[0:64]
+x_fn = final_ds[feature_names]
+# have to find x_fn_breed to predict y_pet
+x_fn_breed = pd.concat([x_fn, final_ds['f64']], axis=1)
+y_breed = final_ds['f64']
+y_pet = final_ds['f65']
+
+# final feature selection
+selector = SelectKBest(chi2, k = 64) #chi2, f_classif
+feature_x_fn = selector.fit_transform(x_fn, y_breed)
+mask = selector.get_support() #list of booleans
+feature_x_fn_names = [] # The list of your K best features
+for bool, feature in zip(mask, x_fn.columns):
+    if bool:
+        feature_x_fn_names.append(feature)
+
+#lola = pd.DataFrame(feature_x_fn, feature_x_fn_names)
+
+# use only one
+#feature_x_fn_breed = pd.concat([feature_x_fn, final_ds['f64']], axis=1)
+#feature_x_fn_breed = SelectKBest(chi2, k=10).fit_transform(x_fn_breed, y_pet)
+selector = SelectKBest(chi2, k = 40) #chi2, f_classif
+feature_x_fn_breed = selector.fit_transform(x_fn_breed, y_pet)
+mask = selector.get_support() #list of booleans
+feature_x_fn_breed_names = [] # The list of your K best features
+for bool, feature in zip(mask, x_fn_breed.columns):
+    if bool:
+        feature_x_fn_breed_names.append(feature)
+
+# use classification algorithm for model training
+model_1 = GradientBoostingClassifier(random_state=0)
+model_1.fit(feature_x_fn, y_breed)
+model_2 = GradientBoostingClassifier(random_state=0)
+model_2.fit(feature_x_fn_breed, y_pet)
+
+
+# apply on test data
+
+# load data
+td = pd.read_csv("Dataset/test.csv")
+
+# converting Nan values
+td['condition']=td['condition'].fillna(3)
+
+# hot encoding
+#for condition
+integer_encoded = td['condition'].values
+onehot_encoder = OneHotEncoder(sparse=False)
+integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
+x1 = onehot_encoder.fit_transform(integer_encoded) # 4 columns
+
+#for colortype
+integer_encoded = td['color_type'].values  
+onehot_encoder = OneHotEncoder(sparse=False)
+integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
+x2 = onehot_encoder.fit_transform(integer_encoded) # 56 columns
+
+#imputation for X1
+matrix = [0 for y in range(10)] 
+count = [0 for y in range(10)] 
+avg = [0 for y in range(10)]
+
+for i in range(len(td)):
+    if td['X1'][i] != 0:
+        x = int(td['X2'][i])
+        matrix[x] = matrix[x] + td['X1'][i]
+        count[x] += 1
+        
+for i in range(10):
+    if count[i] != 0:
+        avg[i] = round(matrix[i]/count[i])
+
+x3 = [0]*len(td) # 1 column
+for i in range(len(td)):
+    if td['X1'][i] == 0:
+        x = int(td['X2'][i])
+        x3[i] = avg[x]
+    else:
+        x3[i] = td['X1'][i]
+
+x3 = np.resize(x3, (len(td), 1))
+
+x_final = np.concatenate( # 66 columns
+    (x1,                             # 4
+     x2,                             # 56   
+     td[['length(m)']],              # 1
+     td[['height(cm)']],             # 1
+     x3,                   # 'X1'    # 1
+     td[['X2']]), axis=1)          # 1
+
+final_td = pd.DataFrame(
+    data=x_final[0:,0:],
+    index=[i for i in range(x_final.shape[0])],
+    columns=['f'+str(i) for i in range(x_final.shape[1])])
+
+
+# to predict the breed
+test_df = pd.DataFrame()
+for i in feature_x_fn_names:
+    test_df[i] = final_td[i]
+
+predict_1 = model_1.predict(test_df)
+predict_1 = np.resize(predict_1, (len(td), 1))
+
+# to predict the pet
+# modifying content of final_td: adding predict_1 as 'f64'
+x_final = np.concatenate( # 66 columns
+    (x1,                             # 4
+     x2,                             # 56   
+     td[['length(m)']],              # 1
+     td[['height(cm)']],             # 1
+     x3,                   # 'X1'    # 1
+     td[['X2']], predict_1), axis=1)          # 1
+
+final_td_2 = pd.DataFrame(
+    data=x_final[0:,0:],
+    index=[i for i in range(x_final.shape[0])],
+    columns=['f'+str(i) for i in range(x_final.shape[1])])
+ 
+test_df = pd.DataFrame()
+for i in feature_x_fn_breed_names:
+    test_df[i] = final_td_2[i]
+
+predict_2 = model_2.predict(test_df)
+predict_2 = np.resize(predict_2, (len(td), 1))
+
+'''
+count1=0
+count2=0
+count3=0
+for i in range(len(predict_1)):
+    if td['condition'][i] == 0:
+        if(int( predict_1[i][0]) != 1):
+            count1+=1
+            predict_1[i][0] = 1
+    elif td['condition'][i] == 3:
+        if(predict_1[i][0] != 2):
+            count2+=1
+            predict_1[i][0] = 2
+    else:
+        if(predict_1[i][0] != 0):
+            count3+=1
+            predict_1[i][0]= 0
+'''
+
+answer = pd.read_csv("lola.csv")
+answer['pet_category']  = predict_1
+answer['breed_category']= predict_2
+answer.to_csv(r'lola.csv', index=False)
